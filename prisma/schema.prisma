@@ -1,0 +1,13 @@
+// clash-conference – the programme of one event, published to CLASH.
+// Prisma schema is the canonical definition of the domain model.
+// SQLite has no native enums; status fields use String.
+// Models (Settings, Talk) arrive in Story 1.2.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../lib/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}

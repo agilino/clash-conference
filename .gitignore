@@ -24,9 +24,9 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
-# local env files
-.env*.local
-.env
+# env files (the example is the only one that is committed)
+.env*
+!.env.example
 
 # vercel
 .vercel
@@ -34,3 +34,12 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# prisma generated client
+/lib/generated/prisma
+
+# prisma sqlite
+/dev.db
+/dev.db-journal
+prisma/*.db
+prisma/*.db-journal
