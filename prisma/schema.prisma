@@ -28,7 +28,9 @@ model Talk {
   description String
   startsAt    DateTime
   room        String?
-  /// draft | published | failed
+  /// One of TALK_STATUS in lib/constants.ts (draft | published | failed), which is
+  /// the source of the three words. This default and the migration's DEFAULT 'draft'
+  /// repeat TALK_STATUS.DRAFT; tests/global-setup.ts asserts they still agree.
   status      String   @default("draft")
   /// The CLASH clash id, set once the talk is published.
   clashId     String?

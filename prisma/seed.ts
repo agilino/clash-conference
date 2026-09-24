@@ -55,7 +55,9 @@ function daysFromNow(days: number, hour: number, minute: number): Date {
 }
 
 async function main() {
-  console.log("Clearing existing data…");
+  // Destructive: this is the same database the dev server reads, so a programme
+  // entered by hand is gone. Said out loud because only db:reset advertises it.
+  console.log(`Deleting every Talk and Settings row in ${dbFile}…`);
   await prisma.talk.deleteMany();
   await prisma.settings.deleteMany();
 
@@ -86,6 +88,16 @@ main()
   })
   .catch(async (e) => {
     console.error(e);
+    // An unmigrated database fails on the first deleteMany with a raw stack; name
+    // the command that fixes it instead of leaving the reader there. Both wordings
+    // are matched: the driver's own and Prisma's P2021.
+    const missingTable =
+      e instanceof Error &&
+      (/no such table/i.test(e.message) ||
+        /does not exist in the current database/i.test(e.message));
+    if (missingTable) {
+      console.error("\nThe database has no tables. Run npm run db:migrate first.");
+    }
     await prisma.$disconnect();
     process.exit(1);
   });
