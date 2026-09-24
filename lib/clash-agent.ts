@@ -62,13 +62,13 @@ function parseAnswer(result: string): PublishOutcome {
     if (!answer.success) continue;
     const { status, clashId, message } = answer.data;
     if (status === "failed") return { status: "failed", message };
-    if (!clashId) {
+    if (!clashId || !clashId.trim()) {
       return {
         status: "failed",
         message: "Agent reported published without a clashId",
       };
     }
-    return { status: "published", clashId, message };
+    return { status: "published", clashId: clashId.trim(), message };
   }
   return {
     status: "failed",
@@ -81,16 +81,21 @@ export async function publishTalkToClash(
 ): Promise<PublishOutcome> {
   const clashDir = process.env.CLASH_DIR ?? "../clash";
   try {
+    // The agent is fully isolated: it sees the two CLASH tools and nothing of
+    // the developer's machine, so its behaviour and language come from the
+    // prompt alone, on every machine that runs this app.
     const run = query({
       prompt: buildPrompt(input),
       options: {
         mcpServers: {
           clash: { command: "npx", args: ["tsx", clashDir + "/mcp/server.ts"] },
         },
+        tools: [], // no built-in tools
+        settingSources: [], // no ~/.claude, no .claude/, no CLAUDE.md
+        strictMcpConfig: true, // only the clash server
         allowedTools: ["mcp__clash__find_venue", "mcp__clash__create_clash"],
-        disallowedTools: ["Bash", "Edit", "Write", "WebFetch", "WebSearch"],
+        permissionMode: "dontAsk", // every other call is denied, never prompted
         maxTurns: 8,
-        permissionMode: "default",
       },
     });
 

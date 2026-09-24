@@ -42,7 +42,7 @@ async function readTalkId(request: Request): Promise<string | null> {
 
 type PublishOutcome = Awaited<ReturnType<typeof publishTalkToClash>>;
 
-type Guarded ={ talk: Talk; settings: Settings } | { response: Response };
+type Guarded = { talk: Talk; settings: Settings } | { response: Response };
 
 async function loadAndGuard(talkId: string): Promise<Guarded> {
   const talk = await prisma.talk.findUnique({ where: { id: talkId } });

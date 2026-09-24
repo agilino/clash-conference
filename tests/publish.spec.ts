@@ -20,6 +20,7 @@ type Db = {
   close(): void;
 };
 
+const BODY_HINT = "Body must be JSON with a string talkId.";
 const SETTINGS_HINT =
   "Complete settings first: venue name and host email are required.";
 
@@ -105,17 +106,16 @@ test("a body that is not JSON is a 400", async ({ request }) => {
     data: "not json",
   });
   expect(res.status()).toBe(400);
-  expect(await res.json()).toEqual({
-    error: "Body must be JSON with a string talkId.",
-  });
+  expect(await res.json()).toEqual({ error: BODY_HINT });
 });
 
-test("a body without a string talkId is a 400", async ({ request }) => {
+test("a body without a string talkId is a 400 with the body hint", async ({
+  request,
+}) => {
   for (const data of [{}, { talkId: 42 }]) {
     const res = await request.post("/api/publish", { data });
-    expect(res.status()).toBe(400);
-    const body = await res.json();
-    expect(typeof body.error).toBe("string");
+    expect(res.status(), JSON.stringify(data)).toBe(400);
+    expect(await res.json(), JSON.stringify(data)).toEqual({ error: BODY_HINT });
   }
 });
 
@@ -125,6 +125,18 @@ test("an unknown talk is a 404", async ({ request }) => {
   });
   expect(res.status()).toBe(404);
   expect(await res.json()).toEqual({ error: "Talk not found." });
+});
+
+test("an unknown talk is a 404 before the settings guard", async ({ request }) => {
+  // Guard order (AD-8): the talk lookup answers before Settings are read, so
+  // blank settings do not turn an unknown id into a 400.
+  await withBlankSetting(db, "venueName", async () => {
+    const res = await request.post("/api/publish", {
+      data: { talkId: "does-not-exist" },
+    });
+    expect(res.status()).toBe(404);
+    expect(await res.json()).toEqual({ error: "Talk not found." });
+  });
 });
 
 test("a published talk is a 409 and stays unchanged", async ({ request }) => {
@@ -144,6 +156,30 @@ test("a published talk is a 409 and stays unchanged", async ({ request }) => {
     status: "published",
     clashId: "abc123",
     lastMessage: "Published as abc123.",
+  });
+});
+
+test("a published talk with a blank venue name is a settings 400, not a 409", async ({
+  request,
+}) => {
+  const id = insertTalk(db, {
+    status: "published",
+    clashId: "abc456",
+    lastMessage: "Published as abc456.",
+  });
+  created.push(id);
+
+  // Guard order (AD-8): the settings guard answers before the 409 check, so
+  // incomplete settings win even for a published talk, and the row is untouched.
+  await withBlankSetting(db, "venueName", async () => {
+    const res = await request.post("/api/publish", { data: { talkId: id } });
+    expect(res.status()).toBe(400);
+    expect(await res.json()).toEqual({ error: SETTINGS_HINT });
+  });
+  expect(readTalk(db, id)).toEqual({
+    status: "published",
+    clashId: "abc456",
+    lastMessage: "Published as abc456.",
   });
 });
 
