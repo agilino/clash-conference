@@ -38,6 +38,12 @@ next-env.d.ts
 # prisma generated client
 /lib/generated/prisma
 
+# playwright
+/test-results
+/playwright-report
+/blob-report
+/playwright/.cache
+
 # prisma sqlite
 /dev.db
 /dev.db-journal
