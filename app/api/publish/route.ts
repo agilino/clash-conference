@@ -4,8 +4,9 @@ import { getSettings } from "@/lib/data/settings";
 import type { Settings, Talk } from "@/lib/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 
-// POST /api/publish { talkId } — the only Route Handler and the only writer of
-// status, clashId and lastMessage (AD-2, AD-8). Every guard answers before the
+// POST /api/publish { talkId } — one of two Route Handlers and, with
+// app/api/unpublish/route.ts, one of the two writers of status, clashId and
+// lastMessage (AD-2, AD-8). Every guard answers before the
 // agent starts; Talk and Settings are read once, so edits made while the agent
 // runs never reach it.
 

@@ -3,9 +3,10 @@ import "server-only";
 import { query } from "@anthropic-ai/claude-agent-sdk";
 import { z } from "zod";
 
-// The agent seam (AD-7). This is the only module that imports the Agent SDK and
-// the only reader of CLASH_DIR. The route hands in plain values and gets back
-// one of two outcomes; this function never throws.
+// The agent seam (AD-7). With app/api/unpublish/route.ts (its self-contained
+// twin, which never imports this file) it is one of the two modules that import
+// the Agent SDK and read CLASH_DIR. The route hands in plain values and gets
+// back one of two outcomes; this function never throws.
 
 export type PublishInput = {
   eventName: string;

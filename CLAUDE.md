@@ -60,7 +60,8 @@ and its spec before changing what it built.
   literals. `Talk.clashId` points into CLASH's database; there is no relation and this app never opens it.
 - **One writer per field group.** `app/actions/settings.ts` is the only writer of `Settings`;
   `app/actions/talks.ts` writes only `title`, `description`, `startsAt`, `room` and deletes rows;
-  `app/api/publish/route.ts` is the only writer of `status`, `clashId`, `lastMessage`. Nothing else writes.
+  `app/api/publish/route.ts` and `app/api/unpublish/route.ts` are the only writers of `status`, `clashId`,
+  `lastMessage`. Nothing else writes.
 - **Reads** go through `lib/data/*` (`import "server-only"`), called from async Server Components; no page
   or component holds a query, and row types are the generated Prisma types (no DTO layer). `lib/**` never
   imports `app/**` or `components/**`; a `"use client"` file never imports `@/lib/prisma` or `@/lib/data/*`.
