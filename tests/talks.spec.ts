@@ -1,13 +1,16 @@
 import { execSync } from "node:child_process";
 import { expect, test, type Page, type Route } from "@playwright/test";
-import { TALK_STATUS } from "../lib/constants";
-import { toLocalInput } from "../lib/format";
+import { TALK_STATUS, type TalkStatus } from "../lib/constants";
+import { formatDateTime, toLocalInput } from "../lib/format";
 
 // Every talk here is created by the spec itself, under a title with a Date.now()
 // suffix, and removed again after its test — so nothing depends on the seeded
-// talks and the programme ends as seeded. A talk's id is read from its row's
-// Edit link. The database checks run tests/talk-db.ts as its own tsx process,
-// for the reason tests/global-setup.ts gives.
+// talks and the programme ends as seeded. A talk created through the form has
+// its id read from its row's Edit link; a row inserted directly (the list tests,
+// which need a failed or a published talk without CLASH) reports its id itself.
+// The database checks run tests/talk-db.ts as its own tsx process, for the
+// reason tests/global-setup.ts gives. The one exception to "never touch the
+// seeded talks" is the empty-state test at the end, which reseeds afterwards.
 
 type TalkRow = {
   id: string;
@@ -25,10 +28,7 @@ const DESCRIPTION = "Written by tests/talks.spec.ts and removed again.";
 
 /** A start `days` out at `hours:minutes`, typed the way the datetime-local input wants it. */
 function localStart(days: number, hours: number, minutes: number): string {
-  const d = new Date();
-  d.setDate(d.getDate() + days);
-  d.setHours(hours, minutes, 0, 0);
-  return toLocalInput(d);
+  return toLocalInput(startAt(days, hours, minutes));
 }
 
 // 30 days out. The stored instant must equal this local time read on the same
@@ -44,29 +44,73 @@ test.afterEach(() => {
   for (const id of created.splice(0)) talkDb("delete", id);
 });
 
+/** One tests/talk-db.ts run; JSON travels through the environment, never an argument. */
+function runTalkDb(args: string, env?: Record<string, string>): string {
+  return execSync(`npx tsx tests/talk-db.ts ${args}`, {
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "inherit"],
+    env: env ? { ...process.env, ...env } : process.env,
+  });
+}
+
 function talkDb(
   command: "get" | "set" | "delete",
   id: string,
   patch?: Partial<Record<"status" | "clashId" | "lastMessage", string | null>>,
 ): string {
-  return execSync(`npx tsx tests/talk-db.ts ${command} ${id}`, {
-    encoding: "utf8",
-    stdio: ["ignore", "pipe", "inherit"],
-    env: patch
-      ? { ...process.env, TALK_DB_PATCH: JSON.stringify(patch) }
-      : process.env,
-  });
+  return runTalkDb(
+    `${command} ${id}`,
+    patch ? { TALK_DB_PATCH: JSON.stringify(patch) } : undefined,
+  );
 }
 
 function getTalk(id: string): TalkRow | null {
   return JSON.parse(talkDb("get", id).trim());
 }
 
+/**
+ * Inserts a row the way the publish route will leave it — status, clashId and
+ * lastMessage included — and registers it for afterEach.
+ */
+function createTalkRow(fields: {
+  title: string;
+  startsAt: Date;
+  room?: string;
+  status: TalkStatus;
+  clashId?: string;
+  lastMessage?: string;
+}): TalkRow {
+  const row: TalkRow = JSON.parse(
+    runTalkDb("create", {
+      TALK_DB_CREATE: JSON.stringify({
+        ...fields,
+        description: DESCRIPTION,
+        startsAt: fields.startsAt.toISOString(),
+      }),
+    }).trim(),
+  );
+  created.push(row.id);
+  return row;
+}
+
+/** Empties the programme, seeded talks included; the caller must reseed. */
+function deleteAllTalks(): void {
+  runTalkDb("delete-all");
+}
+
+/** A start `days` out at `hours:minutes`, as a Date. */
+function startAt(days: number, hours: number, minutes: number): Date {
+  const d = new Date();
+  d.setDate(d.getDate() + days);
+  d.setHours(hours, minutes, 0, 0);
+  return d;
+}
+
 function uniqueTitle(label: string): string {
   return `${label} ${Date.now()}`;
 }
 
-/** The interim list row that shows exactly this title. */
+/** The list row that shows exactly this title. */
 function row(page: Page, title: string) {
   return page
     .getByRole("listitem")
@@ -591,4 +635,250 @@ test("a delete whose call fails closes the dialog, toasts and keeps the talk", a
   await page.reload();
   await expect(row(page, title)).toBeVisible();
   expect(getTalk(id)).not.toBeNull();
+});
+
+// The list (Story 2.3). Rows in every state are inserted directly, since only
+// the publish route of Epic 3 writes status, clashId and lastMessage. Their
+// starts lie 40 days and more out, after the seeded talks and the 30-day talks
+// of the tests above, so their order among themselves is the only one measured.
+
+/** The action cluster's children in DOM order: badge, Publish, Edit, Delete. */
+function actions(page: Page, title: string) {
+  return row(page, title).locator(":scope > div").last().locator(":scope > *");
+}
+
+test("a draft row shows its meta line, badge and actions and no outcome line", async ({
+  page,
+}) => {
+  const title = uniqueTitle("Listed draft");
+  const startsAt = startAt(40, 10, 0);
+  const talk = createTalkRow({
+    title,
+    startsAt,
+    room: "Main hall",
+    status: TALK_STATUS.DRAFT,
+  });
+
+  await page.goto("/");
+  const draft = row(page, title);
+  await expect(draft).toBeVisible();
+  await expect(
+    draft.getByText(`${formatDateTime(startsAt)} · Main hall`, { exact: true }),
+  ).toBeVisible();
+  // Title and meta line only: no outcome line for a draft.
+  await expect(draft.locator("p")).toHaveCount(2);
+
+  const cluster = actions(page, title);
+  await expect(cluster).toHaveCount(4);
+  const badge = cluster.nth(0);
+  await expect(badge).toHaveAttribute("data-slot", "badge");
+  await expect(badge).toHaveText(TALK_STATUS.DRAFT);
+  await expect(badge).toHaveAttribute("data-variant", "secondary");
+  await expect(badge).not.toHaveClass(/text-green-700/);
+  const publish = cluster.nth(1);
+  await expect(publish).toHaveText("Publish to CLASH");
+  await expect(publish).toBeDisabled();
+  await expect(publish).toHaveAttribute("title", "publish route missing");
+  const edit = cluster.nth(2);
+  await expect(edit).toHaveText("Edit");
+  await expect(edit).toHaveAttribute("href", `/talks/${talk.id}/edit`);
+  // Every Edit link carries its talk's title, like the Delete button.
+  await expect(edit).toHaveAttribute("aria-label", `Edit ${title}`);
+  await expect(cluster.nth(3)).toHaveAttribute("aria-label", `Delete ${title}`);
+  // Rows are not links.
+  await expect(draft.locator("a")).toHaveCount(1);
+
+  // Phone width, below `sm`: the cluster wraps under the text column and starts
+  // at its left edge. Last in the test, so the viewport is not restored (every
+  // test gets a fresh page at the project's viewport).
+  await page.setViewportSize({ width: 375, height: 800 });
+  const textColumn = draft.locator(":scope > div").first();
+  const actionColumn = draft.locator(":scope > div").last();
+  // Retries until the resize has reached the layout.
+  await expect(draft).toHaveCSS("flex-direction", "column");
+  const textBox = await textColumn.boundingBox();
+  const actionsBox = await actionColumn.boundingBox();
+  if (!textBox || !actionsBox) throw new Error("the row's columns have no box");
+  expect(actionsBox.y).toBeGreaterThanOrEqual(textBox.y + textBox.height);
+  expect(Math.abs(actionsBox.x - textBox.x)).toBeLessThanOrEqual(1);
+});
+
+test("a failed row shows the destructive badge and the agent's full message", async ({
+  page,
+}) => {
+  const title = uniqueTitle("Listed failed talk");
+  const startsAt = startAt(41, 10, 0);
+  // Long enough to wrap at desktop width: several sentences and one unbroken
+  // token, the way an SDK error carries a path.
+  const lastMessage =
+    'No venue matches "Holzmarkt 52". CLASH lists every venue of this community ' +
+    "and none of them has that title. Check the venue name in Settings against " +
+    "the venue titles in CLASH, then publish again. Request: " +
+    "/api/v1/communities/clash-community-day/venues/lookup?title=Holzmarkt%2052" +
+    "&include=archived,drafts,external-references&trace=0f9c2b7a4e1d4c3b8a6f5e2d1c0b9a8f";
+  createTalkRow({
+    title,
+    startsAt,
+    status: TALK_STATUS.FAILED,
+    lastMessage,
+  });
+
+  await page.goto("/");
+  const failed = row(page, title);
+  await expect(failed).toBeVisible();
+  const badge = failed.locator('[data-slot="badge"]');
+  await expect(badge).toHaveText(TALK_STATUS.FAILED);
+  await expect(badge).toHaveAttribute("data-variant", "destructive");
+  const outcome = failed.getByText(lastMessage, { exact: true });
+  await expect(outcome).toBeVisible();
+  await expect(outcome).toHaveClass(/(^|\s)text-destructive(\s|$)/);
+  // In full and wrapping: nothing cuts it to one line, and it spans more than
+  // the single-line meta line does.
+  await expect(outcome).not.toHaveClass(/(^|[\s:])truncate(\s|$)/);
+  await expect(outcome).not.toHaveClass(/(^|[\s:])line-clamp-/);
+  await expect(outcome).not.toHaveClass(/(^|[\s:])whitespace-nowrap(\s|$)/);
+  const meta = failed.getByText(formatDateTime(startsAt), { exact: true });
+  await expect(meta).toBeVisible();
+  const outcomeBox = await outcome.boundingBox();
+  const metaBox = await meta.boundingBox();
+  if (!outcomeBox || !metaBox) throw new Error("the row's lines have no box");
+  expect(outcomeBox.height).toBeGreaterThan(metaBox.height);
+  await expect(failed.locator("p")).toHaveCount(3);
+  await expect(failed.getByText(/^Clash /)).toHaveCount(0);
+});
+
+test("a published row shows the green badge and its clash id in monospace", async ({
+  page,
+}) => {
+  const title = uniqueTitle("Listed published talk");
+  const startsAt = startAt(42, 10, 0);
+  createTalkRow({
+    title,
+    startsAt,
+    room: "Workshop room",
+    status: TALK_STATUS.PUBLISHED,
+    clashId: "abc123",
+  });
+
+  await page.goto("/");
+  const published = row(page, title);
+  await expect(published).toBeVisible();
+  const badge = published.locator('[data-slot="badge"]');
+  await expect(badge).toHaveText(TALK_STATUS.PUBLISHED);
+  await expect(badge).toHaveAttribute("data-variant", "secondary");
+  // The green is the badge component's own addition on top of the variant.
+  await expect(badge).toHaveClass(/(^|\s)bg-green-600\/10(\s|$)/);
+  await expect(badge).toHaveClass(/(^|\s)text-green-700(\s|$)/);
+  await expect(badge).toHaveClass(/(^|\s)dark:text-green-400(\s|$)/);
+  await expect(badge).not.toHaveClass(/(^|\s)bg-secondary(\s|$)/);
+  await expect(badge).not.toHaveClass(/(^|\s)text-secondary-foreground(\s|$)/);
+  const outcome = published.getByText("Clash abc123", { exact: true });
+  await expect(outcome).toBeVisible();
+  await expect(outcome).toHaveClass(/(^|\s)font-mono(\s|$)/);
+  await expect(published.locator("p")).toHaveCount(3);
+});
+
+test("rows are sorted by start, earliest first, and a room-less meta line has no separator", async ({
+  page,
+}) => {
+  const later = uniqueTitle("Later listed draft");
+  const earlier = uniqueTitle("Earlier listed draft");
+  const laterStart = startAt(43, 9, 0);
+  const earlierStart = startAt(40, 16, 30);
+  // Inserted in reverse: the order on the page must come from startsAt, not
+  // from creation order.
+  createTalkRow({ title: later, startsAt: laterStart, status: TALK_STATUS.DRAFT });
+  createTalkRow({
+    title: earlier,
+    startsAt: earlierStart,
+    room: "Room B",
+    status: TALK_STATUS.DRAFT,
+  });
+
+  await page.goto("/");
+  await expect(row(page, earlier)).toBeVisible();
+  await expect(row(page, later)).toBeVisible();
+  const rows = await page.locator("main ul > li").allTextContents();
+  const earlierIndex = rows.findIndex((text) => text.includes(earlier));
+  const laterIndex = rows.findIndex((text) => text.includes(later));
+  expect(earlierIndex).toBeGreaterThanOrEqual(0);
+  expect(laterIndex).toBeGreaterThanOrEqual(0);
+  expect(earlierIndex).toBeLessThan(laterIndex);
+
+  // Without a room the meta line is the formatted start alone.
+  await expect(
+    row(page, later).getByText(formatDateTime(laterStart), { exact: true }),
+  ).toBeVisible();
+  await expect(
+    row(page, earlier).getByText(`${formatDateTime(earlierStart)} · Room B`, {
+      exact: true,
+    }),
+  ).toBeVisible();
+});
+
+test("every Publish button is disabled and says why", async ({ page }) => {
+  createTalkRow({
+    title: uniqueTitle("Publish-inert draft"),
+    startsAt: startAt(40, 11, 0),
+    status: TALK_STATUS.DRAFT,
+  });
+  createTalkRow({
+    title: uniqueTitle("Publish-inert failed talk"),
+    startsAt: startAt(41, 11, 0),
+    status: TALK_STATUS.FAILED,
+    lastMessage: "Venue 'Nowhere' was not found in CLASH.",
+  });
+  createTalkRow({
+    title: uniqueTitle("Publish-inert published talk"),
+    startsAt: startAt(42, 11, 0),
+    status: TALK_STATUS.PUBLISHED,
+    clashId: "clash-set-by-the-talks-spec",
+  });
+
+  await page.goto("/");
+  const rows = page.locator("main ul > li");
+  const buttons = page.getByRole("button", { name: "Publish to CLASH" });
+  // One per row, the seeded drafts included; none is live yet.
+  await expect(buttons).toHaveCount(await rows.count());
+  expect(await rows.count()).toBeGreaterThanOrEqual(3);
+  for (const button of await buttons.all()) {
+    await expect(button).toBeDisabled();
+    await expect(button).toHaveAttribute("title", "publish route missing");
+  }
+});
+
+// Last on purpose: the only test that touches the seeded talks. It empties the
+// programme and reseeds in finally, so a failure still restores it; seeded ids
+// change on the reseed, which nothing relies on.
+test("an empty programme shows the empty state with a second New talk button", async ({
+  page,
+}) => {
+  try {
+    deleteAllTalks();
+    await page.goto("/");
+
+    await expect(
+      page.getByRole("heading", { level: 1, name: "Talks" }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("heading", { level: 3, name: "No talks yet" }),
+    ).toBeVisible();
+    await expect(
+      page.getByText("Add the first talk of your programme."),
+    ).toBeVisible();
+    await expect(page.locator("main ul")).toHaveCount(0);
+    // The header keeps its button and the empty state carries the same one.
+    const newTalk = page.getByRole("link", { name: "New talk" });
+    await expect(newTalk).toHaveCount(2);
+    for (const link of await newTalk.all()) {
+      await expect(link).toHaveAttribute("href", "/talks/new");
+    }
+  } finally {
+    execSync("npm run db:seed", { stdio: ["ignore", "ignore", "inherit"] });
+    // A reseed that leaves the programme wrong exits non-zero, and execSync
+    // throws, so the test fails here rather than a later run finding it.
+    execSync("npx tsx tests/assert-seeded-state.ts", {
+      stdio: ["ignore", "ignore", "inherit"],
+    });
+  }
 });
