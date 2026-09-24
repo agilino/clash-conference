@@ -1,0 +1,40 @@
+// clash-conference – the programme of one event, published to CLASH.
+// Prisma schema is the canonical definition of the domain model.
+// SQLite has no native enums; status fields use String.
+// Settings and Talk have no relation: Talk.clashId points into CLASH's own
+// database, which this app never opens.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../lib/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+/// The single record that names the event, the CLASH venue and the host.
+model Settings {
+  id        String @id @default(cuid())
+  eventName String
+  venueName String
+  hostEmail String
+}
+
+/// One talk in the programme, optionally published to CLASH as a clash.
+model Talk {
+  id          String   @id @default(cuid())
+  title       String
+  description String
+  startsAt    DateTime
+  room        String?
+  /// One of TALK_STATUS in lib/constants.ts (draft | published | failed), which is
+  /// the source of the three words. This default and the migration's DEFAULT 'draft'
+  /// repeat TALK_STATUS.DRAFT; tests/global-setup.ts asserts they still agree.
+  status      String   @default("draft")
+  /// The CLASH clash id, set once the talk is published.
+  clashId     String?
+  /// The agent's last message for this talk; overwritten by every publish.
+  lastMessage String?
+  createdAt   DateTime @default(now())
+}
