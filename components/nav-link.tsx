@@ -15,7 +15,11 @@ export function NavLink({
   href: string;
   children: string;
 }) {
-  const current = usePathname() === href;
+  const pathname = usePathname();
+  // "Talks" (href "/") is the section the talk screens belong to, so it is also
+  // current on /talks/new and /talks/[id]/edit. Every other link matches exactly.
+  const current =
+    pathname === href || (href === "/" && pathname.startsWith("/talks/"));
   return (
     <Link
       href={href}
