@@ -821,9 +821,10 @@ test("rows are sorted by start, earliest first, and a room-less meta line has no
 });
 
 // The toggle (Story 3.1, AD-10). No test here lets a click start the agent
-// (AD-15): the publish tests answer the request themselves with page.route,
-// except the settings one, which the real route answers with a 400 before any
-// agent starts. The unpublish route does not exist until Story 3.3.
+// (AD-15): the publish and unpublish tests answer the request themselves with
+// page.route, except the settings one, which the real publish route answers
+// with a 400 before any agent starts. The real unpublish route's guards (a
+// draft is a 409, and so on) are covered by tests/unpublish.spec.ts.
 
 /** The toast of this type whose title is exactly `text`; sonner marks the type on its <li>. */
 function toastTitled(page: Page, type: "success" | "error", text: string) {
@@ -918,43 +919,90 @@ test("draft and failed rows offer Publish, a published row Unpublish, all enable
   }
 });
 
-test("Unpublish before Story 3.3 toasts the missing route and leaves the row published", async ({
-  page,
-}) => {
-  const title = uniqueTitle("Unpublish-404 talk");
-  const talk = createTalkRow({
-    title,
-    startsAt: startAt(42, 12, 0),
+// Both 200 toasts of the unpublish half (Story 3.3). The handler stands in for
+// the agent: it stores what a run would store, then answers the way the route
+// does, so the refreshed row shows the outcome.
+
+const UNPUBLISH_CLASH_ID = "clash-set-by-the-talks-spec";
+
+for (const outcome of [
+  {
+    name: "draft",
+    status: TALK_STATUS.DRAFT,
+    clashId: null,
+    // The cancel_clash success text, which the agent passes on verbatim.
+    lastMessage: (title: string) =>
+      `Cancelled clash ${UNPUBLISH_CLASH_ID}: "${title}".`,
+    toast: "success" as const,
+    button: "Publish to CLASH",
+  },
+  {
+    name: "published (a refusal)",
     status: TALK_STATUS.PUBLISHED,
-    clashId: "clash-set-by-the-talks-spec",
-    lastMessage: "Published by the talks spec.",
+    clashId: UNPUBLISH_CLASH_ID,
+    lastMessage: () =>
+      "No CLASH user with email nobody@example.com. Nothing was deleted.",
+    toast: "error" as const,
+    button: "Unpublish from CLASH",
+  },
+]) {
+  test(`an Unpublish answered 200 ${outcome.name} toasts the agent's message and refreshes the row`, async ({
+    page,
+  }) => {
+    const title = uniqueTitle(`Toast unpublish ${outcome.status} talk`);
+    const talk = createTalkRow({
+      title,
+      startsAt: startAt(42, 12, 0),
+      status: TALK_STATUS.PUBLISHED,
+      clashId: UNPUBLISH_CLASH_ID,
+      lastMessage: "Published by the talks spec.",
+    });
+    const stored = {
+      status: outcome.status,
+      clashId: outcome.clashId,
+      lastMessage: outcome.lastMessage(title),
+    };
+    let postedBody: string | null = null;
+    const answer = async (route: Route) => {
+      postedBody = route.request().postData();
+      talkDb("set", talk.id, stored);
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ talk: { id: talk.id, ...stored } }),
+      });
+    };
+    await page.route("**/api/unpublish", answer);
+
+    await page.goto("/");
+    await row(page, title)
+      .getByRole("button", { name: "Unpublish from CLASH" })
+      .click();
+
+    await expect(
+      toastTitled(page, outcome.toast, stored.lastMessage),
+    ).toBeVisible();
+    await expect(page.locator("[data-sonner-toast]")).toHaveCount(1);
+    await page.unroute("**/api/unpublish", answer);
+    expect(postedBody).toBe(JSON.stringify({ talkId: talk.id }));
+
+    const refreshed = row(page, title);
+    await expect(refreshed.locator('[data-slot="badge"]')).toHaveText(
+      outcome.status,
+    );
+    await expect(
+      refreshed.getByRole("button", { name: outcome.button }),
+    ).toBeEnabled();
+    // A draft shows no outcome line; a published row keeps its clash.
+    await expect(
+      refreshed.getByText(`Clash ${UNPUBLISH_CLASH_ID}`, { exact: true }),
+    ).toHaveCount(outcome.status === TALK_STATUS.PUBLISHED ? 1 : 0);
+    const saved = getTalk(talk.id);
+    expect(saved?.status).toBe(outcome.status);
+    expect(saved?.clashId).toBe(outcome.clashId);
+    expect(saved?.lastMessage).toBe(stored.lastMessage);
   });
-
-  await page.goto("/");
-  await row(page, title)
-    .getByRole("button", { name: "Unpublish from CLASH" })
-    .click();
-
-  await expect(
-    page.getByText("Unpublishing failed: /api/unpublish answered 404.", {
-      exact: true,
-    }),
-  ).toBeVisible();
-  const published = row(page, title);
-  await expect(published.locator('[data-slot="badge"]')).toHaveText(
-    TALK_STATUS.PUBLISHED,
-  );
-  await expect(
-    published.getByText("Clash clash-set-by-the-talks-spec", { exact: true }),
-  ).toBeVisible();
-  await expect(
-    published.getByRole("button", { name: "Unpublish from CLASH" }),
-  ).toBeEnabled();
-  const stored = getTalk(talk.id);
-  expect(stored?.status).toBe(TALK_STATUS.PUBLISHED);
-  expect(stored?.clashId).toBe("clash-set-by-the-talks-spec");
-  expect(stored?.lastMessage).toBe("Published by the talks spec.");
-});
+}
 
 test("a Publish in flight disables only its own button, then toasts the route's error", async ({
   page,
