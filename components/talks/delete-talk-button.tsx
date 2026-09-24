@@ -46,9 +46,11 @@ export function DeleteTalkButton({
       let result: ActionResult;
       try {
         result = await deleteTalk(talkId);
-      } catch {
-        // The call itself failed (connection lost, dev server restarted): the
-        // same ending as a delete the action refused.
+      } catch (error) {
+        // The call itself failed (connection lost, dev server restarted): log
+        // it, since the toast cannot say why, then end like a delete the action
+        // refused.
+        console.error(error);
         result = { ok: false };
       }
       answered.current = true;

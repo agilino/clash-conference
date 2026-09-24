@@ -72,10 +72,14 @@ export async function updateTalk(
 
 export async function deleteTalk(id: string): Promise<ActionResult> {
   try {
-    // Throws (P2025) when no row has this id, for example after a delete from a
-    // second tab; the button toasts the error instead of the success message.
+    // Throws when no row has this id (P2025, for example after a delete from a
+    // second tab) or when the database refuses the write; the button toasts the
+    // error instead of the success message.
     await prisma.talk.delete({ where: { id } });
-  } catch {
+  } catch (error) {
+    // The failure must leave a trace in the server log, since the client only
+    // ever sees the generic message.
+    console.error("deleteTalk failed:", error);
     return { ok: false, error: "Could not delete this talk." };
   }
 

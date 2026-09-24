@@ -37,7 +37,12 @@ export default async function TalksPage() {
               <span className="min-w-0 truncate font-medium">{talk.title}</span>
               <div className="flex shrink-0 items-center gap-2">
                 <Button variant="outline" size="sm" asChild>
-                  <Link href={`/talks/${talk.id}/edit`}>Edit</Link>
+                  <Link
+                    href={`/talks/${talk.id}/edit`}
+                    aria-label={"Edit " + talk.title}
+                  >
+                    Edit
+                  </Link>
                 </Button>
                 <DeleteTalkButton talkId={talk.id} title={talk.title} />
               </div>
