@@ -14,6 +14,11 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+// The header reads the Settings record on every render (components/app-header.tsx).
+// Without this the build prerenders every screen with the event name it found at
+// build time, so a save — or a db:reset — would leave a stale header behind.
+export const dynamic = "force-dynamic";
+
 export const metadata: Metadata = {
   title: "clash-conference",
   description:
@@ -32,7 +37,7 @@ export default function RootLayout({
     >
       <body className="min-h-full flex flex-col">
         <AppHeader />
-        {children}
+        <main className="flex flex-1 flex-col">{children}</main>
         <Toaster richColors position="top-right" />
       </body>
     </html>

@@ -1,15 +1,22 @@
 import Link from "next/link";
+import { NavLink } from "@/components/nav-link";
+import { getSettings } from "@/lib/data/settings";
 
-// The event name and the "Settings" link arrive with the Settings record in Story 2.1.
-export function AppHeader() {
+// Async Server Component: the event name is read on every render, so a save in
+// the settings form shows here without a reload. "clash-conference" stands in
+// until the single Settings record exists.
+export async function AppHeader() {
+  const settings = await getSettings();
+
   return (
     <header className="h-14 w-full shrink-0 border-b">
       <div className="mx-auto flex h-full w-full max-w-4xl items-center justify-between gap-4 px-4 md:px-6">
         <Link href="/" className="font-medium">
-          clash-conference
+          {settings?.eventName ?? "clash-conference"}
         </Link>
         <nav className="flex items-center gap-4 text-sm">
-          <Link href="/">Talks</Link>
+          <NavLink href="/">Talks</NavLink>
+          <NavLink href="/settings">Settings</NavLink>
         </nav>
       </div>
     </header>
