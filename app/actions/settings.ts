@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
-import { getFieldErrors, type FormState } from "@/lib/form";
+import { getFieldErrors, getFormValues, type FormState } from "@/lib/form";
 import { settingsSchema } from "@/lib/validation";
 
 /**
@@ -14,13 +14,16 @@ export async function saveSettings(
   _prev: FormState,
   formData: FormData,
 ): Promise<FormState> {
-  const parsed = settingsSchema.safeParse({
-    eventName: formData.get("eventName"),
-    venueName: formData.get("venueName"),
-    hostEmail: formData.get("hostEmail"),
-  });
+  const values = getFormValues(formData, [
+    "eventName",
+    "venueName",
+    "hostEmail",
+  ]);
+  const parsed = settingsSchema.safeParse(values);
   if (!parsed.success) {
-    return { fieldErrors: getFieldErrors(parsed.error) };
+    // Hand the typed text back, or React's post-action reset would put the
+    // saved values back into every field under the new error messages.
+    return { fieldErrors: getFieldErrors(parsed.error), values };
   }
 
   const existing = await prisma.settings.findFirst();

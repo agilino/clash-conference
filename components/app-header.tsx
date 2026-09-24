@@ -11,7 +11,10 @@ export async function AppHeader() {
   return (
     <header className="h-14 w-full shrink-0 border-b">
       <div className="mx-auto flex h-full w-full max-w-4xl items-center justify-between gap-4 px-4 md:px-6">
-        <Link href="/" className="font-medium">
+        {/* min-w-0 + truncate: the event name has no length limit and the header
+            a fixed height, so a long name ends in an ellipsis instead of wrapping
+            past the border at phone width. */}
+        <Link href="/" className="min-w-0 truncate font-medium">
           {settings?.eventName ?? "clash-conference"}
         </Link>
         <nav className="flex items-center gap-4 text-sm">

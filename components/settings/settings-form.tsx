@@ -54,6 +54,10 @@ export function SettingsForm({ defaultValues }: SettingsFormProps) {
   }, [state, router]);
 
   const errors = state?.fieldErrors;
+  // React 19 resets these uncontrolled inputs to their defaultValue whenever the
+  // action returns. On a miss the action hands back what was typed, so the reset
+  // keeps the organiser's edits; otherwise the saved record fills the form.
+  const values = { ...defaultValues, ...state?.values };
 
   return (
     // noValidate: zod owns every message. Without it the browser's own email
@@ -67,7 +71,7 @@ export function SettingsForm({ defaultValues }: SettingsFormProps) {
           ref={(el) => {
             inputs.current.eventName = el;
           }}
-          defaultValue={defaultValues.eventName}
+          defaultValue={values.eventName}
           aria-invalid={!!errors?.eventName}
           aria-describedby={errors?.eventName ? "eventName-error" : undefined}
         />
@@ -86,7 +90,7 @@ export function SettingsForm({ defaultValues }: SettingsFormProps) {
           ref={(el) => {
             inputs.current.venueName = el;
           }}
-          defaultValue={defaultValues.venueName}
+          defaultValue={values.venueName}
           aria-invalid={!!errors?.venueName}
           aria-describedby={
             errors?.venueName ? "venueName-error" : "venueName-hint"
@@ -112,7 +116,7 @@ export function SettingsForm({ defaultValues }: SettingsFormProps) {
           ref={(el) => {
             inputs.current.hostEmail = el;
           }}
-          defaultValue={defaultValues.hostEmail}
+          defaultValue={values.hostEmail}
           aria-invalid={!!errors?.hostEmail}
           aria-describedby={
             errors?.hostEmail ? "hostEmail-error" : "hostEmail-hint"
