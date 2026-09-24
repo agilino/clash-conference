@@ -77,26 +77,38 @@ and its spec before changing what it built.
 - **Dates**: `lib/format.ts` is the only place a date is formatted or turned into a `datetime-local` value;
   the server parses `startsAt` only through zod coercion.
 - **UI kit**: shadcn components in `components/ui/` are used as shipped and never edited; add one with
-  `npx shadcn@4.21.0 add <name>`. A disabled button always carries a `title`. Never pass `disabled` to
-  `SubmitButton` — the spread after `disabled={pending || …}` would override its pending guard.
-- **Publish seam** (Epic 3): `lib/clash-agent.ts` is the only importer of `@anthropic-ai/claude-agent-sdk`
-  and the only reader of `CLASH_DIR`; `publishTalkToClash` never throws and returns `published` or `failed`.
-  The agent is fully isolated, and the course teaches exactly this option set: `tools: []`,
-  `settingSources: []`, `strictMcpConfig: true`, `allowedTools` = `mcp__clash__find_venue` +
-  `mcp__clash__create_clash`, `permissionMode: "dontAsk"`, `maxTurns: 8`. The route stores what the agent
-  answers and decides nothing itself; its guards run 400 body → 404 talk → 400 settings → 409 already
-  published → agent, then one conditional `updateMany`. Any change here needs the same change in task 19.
-  `serverExternalPackages` in `next.config.ts` keeps the SDK out of the bundle. Credentials come from the
-  shell that starts `npm run dev`, never from a file. No Playwright spec may need credentials or a live CLASH.
-- **CLASH** (`../clash`, `CLASH_DIR` in `.env`): `mcp/server.ts` offers `list_upcoming_clashes(area?)`,
-  `find_venue(query)` and `create_clash(title, description, dateTime ISO, venueId, hostEmail)`. Refusals come
-  back as text with `isError: true` and fixed wording ("No CLASH user with email …", "Unknown venue …",
-  "dateTime must be an ISO date-time in the future.", "Duplicate: … already exists at …"); "No venue
-  matches …" is a normal answer, not an error. The server resolves its `dev.db` relative to its own file,
+  `npx shadcn@4.21.0 add <name>`. A button is disabled only while its own request is in flight and its
+  pending label says why. Never pass `disabled` to `SubmitButton` — the spread after
+  `disabled={pending || …}` would override its pending guard.
+- **Publish and Unpublish** (Epic 3): the talk button (`components/talks/publish-button.tsx`) is a toggle —
+  "Publish to CLASH" posts to `/api/publish`, "Unpublish from CLASH" (published rows) to `/api/unpublish`; a
+  non-JSON answer (a missing route) toasts `Publishing failed: /api/publish answered 404.`, a text task 19
+  quotes verbatim. Exactly two modules import `@anthropic-ai/claude-agent-sdk` and read `CLASH_DIR`:
+  `lib/clash-agent.ts` (publish seam; `publishTalkToClash` never throws) and `app/api/unpublish/route.ts`,
+  which holds its own `query()` call on purpose — it stays on `19-start` as the worked example of the route
+  participants write, so it must never import `lib/clash-agent.ts` and must stay readable (same check order
+  and option layout as the publish route). Both agents are fully isolated and the course teaches exactly this
+  option set: `tools: []`, `settingSources: []`, `strictMcpConfig: true`, `permissionMode: "dontAsk"`;
+  publish has `allowedTools` = `mcp__clash__find_venue` + `mcp__clash__create_clash`, `maxTurns: 8`;
+  unpublish has `allowedTools` = `mcp__clash__cancel_clash`, `maxTurns: 4`. The routes store what the agent
+  answers and decide nothing themselves; guards run 400 body → 404 talk → 400 settings → 409 → agent, then
+  one conditional `updateMany` (unpublish also matches the `clashId` read at the start). Any change here needs
+  the same change in task 19. `serverExternalPackages` in `next.config.ts` keeps the SDK out of the bundle.
+  Credentials come from the shell that starts `npm run dev`, never from a file. No Playwright spec may need
+  credentials or a live CLASH.
+- **CLASH** (`../clash`, `CLASH_DIR` in `.env`): `mcp/server.ts` offers four tools —
+  `list_upcoming_clashes(area?)`, `find_venue(query)`, `create_clash(title, description, dateTime ISO,
+  venueId, hostEmail)` and `cancel_clash(clashId, hostEmail)`, which deletes only a clash its own host
+  created. Refusals come back as text with `isError: true` and fixed wording ("No CLASH user with email …",
+  "Unknown venue …", "dateTime must be an ISO date-time in the future.", "Duplicate: … already exists at
+  …"; for cancel: "… Nothing was deleted.", "Unknown clash …. Use list_upcoming_clashes to find it.", "… did
+  not create clash …"); success texts are `Created clash <id>: "<title>" at <iso>.` and
+  `Cancelled clash <id>: "<title>".`; "No venue matches …" is a normal answer, not an error. The server
+  comes from CLASH's generated `19-solution` branch. It resolves its `dev.db` relative to its own file,
   so a publish started from here writes CLASH's database: the settings venue name must equal a CLASH venue
   title and the host email a CLASH user (seeded: "Holzmarkt 25", `anna.schmidt@example.com`; seeded users
   log in with password `test`). Never change files in `../clash`; a live publish creates a clash in
-  `../clash/dev.db` — delete it afterwards the way `../clash/mcp/smoke.ts` cleans up.
+  `../clash/dev.db` — unpublish it, or delete it the way `../clash/mcp/smoke.ts` cleans up.
 
 ## Conventions
 
@@ -105,6 +117,11 @@ and its spec before changing what it built.
   Every story ships its own spec under `tests/` and leaves the seeded state behind.
 - `next dev` rewrites the managed block in `AGENTS.md` (this file's first line keeps pointing at it); commit
   whatever it writes instead of reverting it.
-- The `19-start` branch is `main` without `app/api/publish/route.ts` and `lib/clash-agent.ts`, with
-  `components/talks/publish-button.tsx` rendering disabled (`title="publish route missing"`, no fetch); the
-  SDK dependency and `serverExternalPackages` stay so participants install nothing.
+- The `19-start` branch is `main` minus exactly `app/api/publish/route.ts` and `lib/clash-agent.ts`, made by
+  one commit (`chore: 19-start without the publish route`); every other file, the button and the unpublish
+  route included, is identical, and the SDK dependency and `serverExternalPackages` stay so participants
+  install nothing. `19-solution` is a branch name on the final `main`. Task 19 numbers the clash-conference
+  steps 7–10 (setup, the publish-route prompt, publish → the clash on `localhost:3000/map` → unpublish →
+  gone, unknown venue → failed).
+- While `npm run dev` holds port 3001, `npm test` attaches to it (`reuseExistingServer`); Next 16 allows only
+  one `next dev` per project directory.
