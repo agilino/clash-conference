@@ -139,7 +139,10 @@ test("an unknown talk is a 404 before the settings guard", async ({ request }) =
   });
 });
 
-test("a published talk is a 409 and stays unchanged", async ({ request }) => {
+test("a published talk is a 409, stays unchanged and offers Unpublish", async ({
+  request,
+  page,
+}) => {
   const id = insertTalk(db, {
     status: "published",
     clashId: "abc123",
@@ -157,6 +160,17 @@ test("a published talk is a 409 and stays unchanged", async ({ request }) => {
     clashId: "abc123",
     lastMessage: "Published as abc123.",
   });
+
+  // The row offers the other half of the toggle (AD-10); nothing is clicked.
+  await page.goto("/");
+  const row = page
+    .locator("main ul > li")
+    .filter({ has: page.getByText(`Publish spec talk ${id}`, { exact: true }) });
+  const toggle = row.locator('[data-slot="button"]').first();
+  await expect(toggle).toHaveText("Unpublish from CLASH");
+  await expect(toggle).toBeEnabled();
+  await expect(toggle).not.toHaveAttribute("title");
+  await expect(row.getByRole("button", { name: "Publish to CLASH" })).toHaveCount(0);
 });
 
 test("a published talk with a blank venue name is a settings 400, not a 409", async ({
