@@ -1,6 +1,5 @@
 import Link from "next/link";
 import { DeleteTalkButton } from "@/components/talks/delete-talk-button";
-import { PublishButton } from "@/components/talks/publish-button";
 import { StatusBadge } from "@/components/talks/status-badge";
 import { Button } from "@/components/ui/button";
 import { asTalkStatus, TALK_STATUS } from "@/lib/constants";
@@ -44,7 +43,6 @@ export function TalkList({ talks }: { talks: Talk[] }) {
             </div>
             <div className="flex flex-wrap items-center gap-2 sm:shrink-0">
               <StatusBadge status={status} />
-              <PublishButton talkId={talk.id} status={status} />
               <Button variant="outline" size="sm" asChild>
                 {/* aria-label: every Edit link would otherwise share one
                     accessible name. Playwright's { name: "Edit" } still

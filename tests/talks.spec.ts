@@ -642,7 +642,7 @@ test("a delete whose call fails closes the dialog, toasts and keeps the talk", a
 // starts lie 40 days and more out, after the seeded talks and the 30-day talks
 // of the tests above, so their order among themselves is the only one measured.
 
-/** The action cluster's children in DOM order: badge, Publish, Edit, Delete. */
+/** The action cluster's children in DOM order: badge, Edit, Delete. */
 function actions(page: Page, title: string) {
   return row(page, title).locator(":scope > div").last().locator(":scope > *");
 }
@@ -669,22 +669,18 @@ test("a draft row shows its meta line, badge and actions and no outcome line", a
   await expect(draft.locator("p")).toHaveCount(2);
 
   const cluster = actions(page, title);
-  await expect(cluster).toHaveCount(4);
+  await expect(cluster).toHaveCount(3);
   const badge = cluster.nth(0);
   await expect(badge).toHaveAttribute("data-slot", "badge");
   await expect(badge).toHaveText(TALK_STATUS.DRAFT);
   await expect(badge).toHaveAttribute("data-variant", "secondary");
   await expect(badge).not.toHaveClass(/text-green-700/);
-  const publish = cluster.nth(1);
-  await expect(publish).toHaveText("Publish to CLASH");
-  await expect(publish).toBeDisabled();
-  await expect(publish).toHaveAttribute("title", "publish route missing");
-  const edit = cluster.nth(2);
+  const edit = cluster.nth(1);
   await expect(edit).toHaveText("Edit");
   await expect(edit).toHaveAttribute("href", `/talks/${talk.id}/edit`);
   // Every Edit link carries its talk's title, like the Delete button.
   await expect(edit).toHaveAttribute("aria-label", `Edit ${title}`);
-  await expect(cluster.nth(3)).toHaveAttribute("aria-label", `Delete ${title}`);
+  await expect(cluster.nth(2)).toHaveAttribute("aria-label", `Delete ${title}`);
   // Rows are not links.
   await expect(draft.locator("a")).toHaveCount(1);
 
@@ -814,37 +810,6 @@ test("rows are sorted by start, earliest first, and a room-less meta line has no
       exact: true,
     }),
   ).toBeVisible();
-});
-
-test("every Publish button is disabled and says why", async ({ page }) => {
-  createTalkRow({
-    title: uniqueTitle("Publish-inert draft"),
-    startsAt: startAt(40, 11, 0),
-    status: TALK_STATUS.DRAFT,
-  });
-  createTalkRow({
-    title: uniqueTitle("Publish-inert failed talk"),
-    startsAt: startAt(41, 11, 0),
-    status: TALK_STATUS.FAILED,
-    lastMessage: "Venue 'Nowhere' was not found in CLASH.",
-  });
-  createTalkRow({
-    title: uniqueTitle("Publish-inert published talk"),
-    startsAt: startAt(42, 11, 0),
-    status: TALK_STATUS.PUBLISHED,
-    clashId: "clash-set-by-the-talks-spec",
-  });
-
-  await page.goto("/");
-  const rows = page.locator("main ul > li");
-  const buttons = page.getByRole("button", { name: "Publish to CLASH" });
-  // One per row, the seeded drafts included; none is live yet.
-  await expect(buttons).toHaveCount(await rows.count());
-  expect(await rows.count()).toBeGreaterThanOrEqual(3);
-  for (const button of await buttons.all()) {
-    await expect(button).toBeDisabled();
-    await expect(button).toHaveAttribute("title", "publish route missing");
-  }
 });
 
 // Last on purpose: the only test that touches the seeded talks. It empties the
