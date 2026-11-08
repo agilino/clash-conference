@@ -18,6 +18,8 @@ local SQLite file. Next 16, Prisma 7, zod 4, shadcn, Playwright. It runs alone o
 - app/actions/talks.ts is the only writer of title, description, startsAt and room.
 - Reads go through lib/data/*, never inside a page.
 - A talk has no duration and no end time.
+- A start must lie in the future.
+- No two talks share a room and a start. Rooms compare without case and outer spaces.
 
 ## Tests
 - A behaviour change ships a spec in tests/.
