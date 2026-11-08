@@ -29,7 +29,11 @@ export const talkSchema = z.object({
   // coercion reads it as server local time — the browser's local time, since
   // both run on the same machine. An empty string coerces to an Invalid Date,
   // which zod 4 rejects with this message.
-  startsAt: z.coerce.date("Enter a valid date and time."),
+  // A talk lies in the future, on create and on every edit. The refinement runs
+  // only on a valid date, so an empty field keeps the message above.
+  startsAt: z.coerce
+    .date("Enter a valid date and time.")
+    .refine((date) => date.getTime() > Date.now(), "Start must be in the future."),
   // Optional: a blank room is stored as null, never as "".
   room: z
     .string()
@@ -38,3 +42,7 @@ export const talkSchema = z.object({
 });
 
 export type TalkInput = z.infer<typeof talkSchema>;
+
+// A room hosts one talk per start. zod cannot see the other talks, so the Server
+// Actions check this one through lib/data/talks.ts and return it as a room error.
+export const ROOM_BOOKED = "This room is already booked at that time.";

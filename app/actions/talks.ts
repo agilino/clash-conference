@@ -8,7 +8,8 @@ import {
   type ActionResult,
   type FormState,
 } from "@/lib/form";
-import { talkSchema } from "@/lib/validation";
+import { isRoomBooked } from "@/lib/data/talks";
+import { ROOM_BOOKED, talkSchema } from "@/lib/validation";
 
 // The only writer of title, description, startsAt and room, and the only place
 // a Talk row is deleted (AD-2). status, clashId and lastMessage belong to the
@@ -31,6 +32,9 @@ export async function createTalk(
   }
 
   const { title, description, startsAt, room } = parsed.data;
+  if (await isRoomBooked(startsAt, room)) {
+    return { fieldErrors: { room: ROOM_BOOKED }, values };
+  }
   // status, clashId, lastMessage and createdAt take their column defaults.
   await prisma.talk.create({ data: { title, description, startsAt, room } });
 
@@ -60,6 +64,10 @@ export async function updateTalk(
   }
 
   const { title, description, startsAt, room } = parsed.data;
+  // The talk itself never blocks its own slot, so an unchanged edit saves.
+  if (await isRoomBooked(startsAt, room, existing.id)) {
+    return { fieldErrors: { room: ROOM_BOOKED }, values };
+  }
   await prisma.talk.update({
     where: { id: existing.id },
     data: { title, description, startsAt, room },
