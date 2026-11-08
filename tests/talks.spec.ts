@@ -293,31 +293,31 @@ test("creating a talk toasts, returns to the list and stores a draft", async ({
   expect(talk?.startsAt).toBe(new Date(FUTURE_START).toISOString());
 });
 
-test("a start in the past is accepted", async ({ page }) => {
-  const title = uniqueTitle("Past talk");
-  const past = "2020-01-01T09:00";
-  const id = await createTalk(page, { title, startsAt: past });
+test("rows are sorted by start across days", async ({ page }) => {
+  // A start must lie in the future (tests/talk-rules.spec.ts), so the earlier
+  // talk sits one day out and the later one 30 days out.
+  const title = uniqueTitle("Earlier talk");
+  const earlier = localStart(1, 9, 0);
+  const id = await createTalk(page, { title, startsAt: earlier });
   await expect(row(page, title)).toBeVisible();
-  // A second talk 30 days out, created here, gives the order something of the
-  // test's own to be measured against.
+  // A second talk, created here, gives the order something of the test's own
+  // to be measured against.
   const later = uniqueTitle("Later talk");
   await createTalk(page, { title: later, startsAt: FUTURE_START });
   await expect(row(page, later)).toBeVisible();
   await expect(row(page, title)).toBeVisible();
-  // Earliest start first: the 2020 talk comes before the later one. Only the
-  // relative order is asserted — the seeded talks sit in between or after,
-  // since tests/assert-seeded-state.ts keeps every seeded talk in the future.
-  // The list's own <li>s, not every listitem on the page — sonner renders its
-  // toasts as <li> too.
+  // Earliest start first. Only the relative order is asserted — the seeded talks
+  // sit in between. The list's own <li>s, not every listitem on the page —
+  // sonner renders its toasts as <li> too.
   const rows = await page.locator("main ul > li").allTextContents();
-  const pastIndex = rows.findIndex((text) => text.includes(title));
+  const earlierIndex = rows.findIndex((text) => text.includes(title));
   const laterIndex = rows.findIndex((text) => text.includes(later));
-  expect(pastIndex).toBeGreaterThanOrEqual(0);
+  expect(earlierIndex).toBeGreaterThanOrEqual(0);
   expect(laterIndex).toBeGreaterThanOrEqual(0);
-  expect(pastIndex).toBeLessThan(laterIndex);
+  expect(earlierIndex).toBeLessThan(laterIndex);
 
   const talk = getTalk(id);
-  expect(talk?.startsAt).toBe(new Date(past).toISOString());
+  expect(talk?.startsAt).toBe(new Date(earlier).toISOString());
   // Created without a room.
   expect(talk?.room).toBeNull();
 });
