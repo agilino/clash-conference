@@ -100,7 +100,8 @@ and its spec before changing what it built.
   `lib/clash-agent.ts` (publish seam; `publishTalkToClash` never throws) and `app/api/unpublish/route.ts`,
   which holds its own `query()` call on purpose — it stays on `19-start` as the worked example of the route
   participants write, so it must never import `lib/clash-agent.ts` and must stay readable (same check order
-  and option layout as the publish route). Both agents are fully isolated and the course teaches exactly this
+  and option layout as the publish route). On `19-start`, `lib/clash-agent.ts` is missing: the publish route
+  participants write may hold its own `query()` call, like unpublish. Both agents are fully isolated and the course teaches exactly this
   option set: `tools: []`, `settingSources: []`, `strictMcpConfig: true`, `permissionMode: "dontAsk"`;
   publish has `allowedTools` = `mcp__clash__find_venue` + `mcp__clash__create_clash`, `maxTurns: 8`;
   unpublish has `allowedTools` = `mcp__clash__cancel_clash`, `maxTurns: 4`. The routes store what the agent
