@@ -45,8 +45,9 @@ and its spec before changing what it built.
   `npm run db:migrate` (`prisma migrate dev`; run `npx prisma generate` if the client is stale afterwards)
   and `npm run db:seed`. The seed is destructive — it deletes every Talk and Settings row in `./dev.db`, the
   same file the dev server reads — and leaves "CLASH Community Day", venue "Holzmarkt 25", host
-  `anna.schmidt@example.com` and three future draft talks. `npm run db:reset` is refused by Prisma 7 when an
-  AI agent runs it; use `npx prisma migrate deploy` followed by `npx prisma db seed` instead.
+  `anna.schmidt@example.com` and three future draft talks. Seeding and resetting are the user's job: Prisma 7
+  refuses `npm run db:reset` when an AI agent runs it, and the dev.db hook below blocks every seed and reset
+  for Claude. Ask the user to run `npm run setup` (migrate deploy, seed, test browser) instead.
 - Tests: `npm test` runs Playwright (Chromium, one worker, no parallelism — every spec shares `dev.db`).
   The global setup reseeds and then asserts the seeded state (`tests/assert-seeded-state.ts`). One file:
   `npx playwright test tests/settings.spec.ts`; one test: `npx playwright test -g "part of the title"`.
@@ -129,7 +130,8 @@ and its spec before changing what it built.
   Every story ships its own spec under `tests/` and leaves the seeded state behind.
 - `.claude/settings.json` denies `Edit(tests/**)`: never change a spec to make it pass; a failing spec is a
   question for the user. A PreToolUse hook (`.claude/hooks/guard-db.mjs`, Bash and PowerShell) blocks
-  `npm run setup`, `db:seed`, `db:reset` and removing `dev.db` with exit 2.
+  `npm run setup`, `npm run db:seed`, `npm run db:reset`, `prisma db seed`, `prisma migrate reset` and
+  removing `dev.db` with exit 2. `npm test` stays allowed, although its global setup reseeds.
 - `next dev` rewrites the managed block in `AGENTS.md` (this file's first line keeps pointing at it); commit
   whatever it writes instead of reverting it.
 - The `19-start` branch is `main` minus exactly `app/api/publish/route.ts` and `lib/clash-agent.ts`, made by
