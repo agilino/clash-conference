@@ -135,7 +135,8 @@ and its spec before changing what it built.
   question for the user. A PreToolUse hook (`.claude/hooks/guard-db.mjs`, Bash and PowerShell) blocks
   `npm run setup`, `npm run db:seed`, `npm run db:reset`, `prisma db seed`, `prisma migrate reset` and
   removing `dev.db` with exit 2. `npm test` stays allowed, although its global setup reseeds. The deny
-  covers the edit tools only; a Bash command could still write under `tests/`. On `19-start`, nine publish
+  covers the edit tools and the file commands Claude Code recognizes in Bash (`sed`, `tee`, `>`), not a
+  script that opens files itself (`node -e`); only the sandbox stops that, and native Windows has none. On `19-start`, nine publish
   specs in `tests/publish.spec.ts` and `tests/talks.spec.ts` stay red until the participant's route answers
   with the same statuses and messages as the finished one.
 - `next dev` rewrites the managed block in `AGENTS.md` (this file's first line keeps pointing at it); commit
