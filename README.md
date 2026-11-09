@@ -28,4 +28,6 @@ Open http://localhost:3001: three draft talks of "CLASH Community Day".
 ## Branches
 
 - `webinar-start`: the app as the webinar task starts. `webinar-solution`: the task solved.
+- `webinar-demo-law`: the webinar demo of advice versus law. The rules are built and `tests/` is locked, but the new
+  specs are missing, so one old spec fails on purpose.
 - `19-start`, `19-solution`: Task 19 of the course, publishing talks to CLASH through an MCP server.
