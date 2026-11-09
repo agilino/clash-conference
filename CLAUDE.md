@@ -13,17 +13,19 @@ CLASH's MCP server.
 
 It is the second repository of task 19 "Build your own MCP" in the mastering-claude-code workshop (Part IV).
 Steps 1–6 happen in the participant's CLASH clone (they build `mcp/server.ts`); steps 7–10 happen here:
-clone, `git checkout 19-start`, `cp .env.example .env`, `npm install`, `npm run db:migrate`,
-`npm run db:seed`, `npm run dev` on port 3001, then they prompt Claude Code to write
+clone (or, in an existing clone, `git fetch` and `git stash -u`), `git checkout 19-start`, `npm install`,
+`npm run setup` (typed by the participant: the dev.db hook blocks it for Claude), a check that `.env` holds
+`CLASH_DIR` (a `.env` from `webinar-start` lacks it), `npm run dev` on port 3001, then they prompt Claude Code to write
 `app/api/publish/route.ts` with the `query()` call inside it, publish one talk (it turns `published` and
 appears in CLASH) and one with an unknown venue (it turns `failed` with the agent's message). The course
 names the route contract, the env vars, the script names, the port, the seed values and the status words
 verbatim — changing any of them here breaks the course text. Docs say "your CLASH clone" and
 "clash-conference", never a bare "the repo": both repositories have a `19-start` branch.
 
-Before task 19 comes the webinar task on the same app, without CLASH. The branches form one line:
+Before task 19 comes the webinar task on the same app, without CLASH. The history runs
 `webinar-start` (the app without the Publish button) → `webinar-solution` (the two talk rules, their specs,
-the test lock and the dev.db hook) → `19-start` → `19-solution` (= `main`).
+the test lock and the dev.db hook) → `main`, and `19-solution` is a second name for `main`. `19-start` is one
+commit on top of `main` (see Conventions): in git it follows `19-solution`, in the course it comes first.
 
 When `_bmad-output/` is present (BMAD v6 drives the work; the folder is untracked at the moment), it is the
 record: `planning-artifacts/` holds the PRD with its addendum (reference prompt, `query()` options), the
@@ -132,7 +134,10 @@ and its spec before changing what it built.
 - `.claude/settings.json` denies `Edit(tests/**)`: never change a spec to make it pass; a failing spec is a
   question for the user. A PreToolUse hook (`.claude/hooks/guard-db.mjs`, Bash and PowerShell) blocks
   `npm run setup`, `npm run db:seed`, `npm run db:reset`, `prisma db seed`, `prisma migrate reset` and
-  removing `dev.db` with exit 2. `npm test` stays allowed, although its global setup reseeds.
+  removing `dev.db` with exit 2. `npm test` stays allowed, although its global setup reseeds. The deny
+  covers the edit tools only; a Bash command could still write under `tests/`. On `19-start`, nine publish
+  specs in `tests/publish.spec.ts` and `tests/talks.spec.ts` stay red until the participant's route answers
+  with the same statuses and messages as the finished one.
 - `next dev` rewrites the managed block in `AGENTS.md` (this file's first line keeps pointing at it); commit
   whatever it writes instead of reverting it.
 - The `19-start` branch is `main` minus exactly `app/api/publish/route.ts` and `lib/clash-agent.ts`, made by
