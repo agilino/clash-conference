@@ -5,7 +5,7 @@ This repository belongs to the course Mastering Claude Code.
 
 ## You need
 
-- Node.js 20.19 or later (22.12+ or 24+ also work), npm and Git.
+- Node.js 20.19+, 22.12+ or 24+ (not 21 or 23), npm and Git.
 - For the tasks: a coding agent such as Claude Code.
 
 ## Start
